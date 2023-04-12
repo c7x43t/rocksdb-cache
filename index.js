@@ -1,5 +1,6 @@
+import levelup from 'levelup';
 import RocksDB from 'rocksdb';
-import { compress, uncompress } from 'lz4-napi';
+import { compress as lz4compress, uncompress as lz4uncompress } from 'lz4-napi';
 import { Sia, DeSia, constructors as builtins } from '@valentech/sializer';
 import Bottleneck from "bottleneck";
 import LRUCache from 'lru-cache';
@@ -49,7 +50,7 @@ class RocksDbCache {
         }, options);
         if (!cloneConstruction) {
             const { levelDbOptions, customConstructors } = options;
-            this.#cache = new RocksDB(path);
+            this.#cache = levelup(new RocksDB(path));
             this.#cacheHandle = this.#openDb(this.#cache, levelDbOptions);
             const constructors = [
                 ...builtins,
@@ -117,11 +118,11 @@ class RocksDbCache {
 
     // }
     async #encodeJSON(data) {
-        return compress(this.#sia.serialize(data));
+        return lz4compress(this.#sia.serialize(data));
     }
 
     async #decodeJSON(buffer) {
-        return buffer ? this.#desia.deserialize(await uncompress(buffer)) : buffer;
+        return buffer ? this.#desia.deserialize(await lz4uncompress(buffer)) : buffer;
     }
     async #closeCache(db, resolve, reject) {
         db.close((closeError) => {
@@ -148,7 +149,6 @@ class RocksDbCache {
         });
     }
     async #getManyFromCache(keys, options, resolve, reject) {
-
         const self = this;
         if (this.#lruCache) {
 
@@ -232,7 +232,7 @@ class RocksDbCache {
     async #hasInCache(key, resolve, reject) {
         this.#cache.get(key, (getError, _) => {
             if (getError) {
-                if (getError.message === 'NotFound: ') {
+                if (/NotFound(?:Error)?: /.test(getError.message)) {
                     return resolve(false);
                 }
                 return reject(getError);

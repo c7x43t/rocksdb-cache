@@ -3,9 +3,14 @@
   "version": "1.0.14",
   "main": "index.js",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/c7x43t/rocksdb-cache.git"
+  },
   "dependencies": {
     "@valentech/sializer": "^0.2.3",
     "bottleneck": "^2.19.5",
+    "levelup": "^5.1.1",
     "lru-cache": "^8.0.5",
     "lz4-napi": "^2.2.0",
     "rocksdb": "^5.2.1"
