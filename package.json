@@ -1,0 +1,24 @@
+{
+  "name": "@valentech/rocksdb-cache",
+  "version": "1.0.14",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@valentech/sializer": "^0.2.3",
+    "bottleneck": "^2.19.5",
+    "lru-cache": "^8.0.5",
+    "lz4-napi": "^2.2.0",
+    "rocksdb": "^5.2.1"
+  },
+  "description": "Very simple cache based on rocksdb.\r API:\r import RocksDbCache from ''\r const path = './cache'\r const cache = new RocksDbCache(path)\r // value can be anything serializable by JSON.stringify\r await cache.set(key, value)\r console.log(await cache.get(key))",
+  "scripts": {
+    "test": "mocha --experimental-specifier-resolution=node"
+  },
+  "author": "",
+  "type": "module",
+  "devDependencies": {
+    "benchmark": "^2.1.4",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0"
+  }
+}
