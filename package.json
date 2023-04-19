@@ -1,14 +1,15 @@
 {
   "name": "@valentech/rocksdb-cache",
-  "version": "1.0.14",
+  "version": "1.0.17",
   "main": "index.js",
+  "url": "https://github.com/c7x43t/rocksdb-cache.git",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/c7x43t/rocksdb-cache.git"
   },
   "dependencies": {
-    "@valentech/sializer": "^0.2.3",
+    "@valentech/sializer": "^0.3.6",
     "bottleneck": "^2.19.5",
     "levelup": "^5.1.1",
     "lru-cache": "^8.0.5",

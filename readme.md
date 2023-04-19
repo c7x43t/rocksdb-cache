@@ -1,7 +1,6 @@
-
 # `RocksDbCache`
 
-Note: This is currently in development and there may be additions made to the API. However, the advertised API below will not undergo any changes.
+Note: Unstable API, stay tuned for version 1.1.
 
 This Node.js package provides a simple cache implementation that uses RocksDB as its underlying storage engine. Its API is similar to that of JavaScript's [Map](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map), with all methods being asynchronous. However, there are a few minor differences which are highlighted below.
 

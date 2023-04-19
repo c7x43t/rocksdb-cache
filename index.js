@@ -1,7 +1,8 @@
 import levelup from 'levelup';
 import RocksDB from 'rocksdb';
 import { compress as lz4compress, uncompress as lz4uncompress } from 'lz4-napi';
-import { Sia, DeSia, constructors as builtins } from '@valentech/sializer';
+// import { Sia, DeSia, constructors as builtins } from '@valentech/sializer';
+import { Sia, DeSia } from '@valentech/sializer';
 import Bottleneck from "bottleneck";
 import LRUCache from 'lru-cache';
 const textDecoder = new TextDecoder();
@@ -32,6 +33,7 @@ class RocksDbCache {
     #reverse = false;
     #reverseClone = undefined;
     #lruCache = undefined; // experimental
+    #path = undefined;
     // #average_data = undefined;
     // #average = 0;
     // #maxPoints = 10;
@@ -51,13 +53,14 @@ class RocksDbCache {
         if (!cloneConstruction) {
             const { levelDbOptions, customConstructors } = options;
             this.#cache = levelup(new RocksDB(path));
-            this.#cacheHandle = this.#openDb(this.#cache, levelDbOptions);
+            this.#cacheHandle = this.#openDb(levelDbOptions);
             const constructors = [
-                ...builtins,
+                // ...builtins,
                 ...customConstructors
             ]
             this.#sia = new Sia({ constructors });
             this.#desia = new DeSia({ constructors });
+            this.#path = path;
             if (options.lruCache) this.#lruCache = new LRUCache({ max: options.lruCacheSize });
         } else {
             this.#cache = instanceToBeCloned._cache;
@@ -66,6 +69,7 @@ class RocksDbCache {
             this.#desia = instanceToBeCloned._desia;
             this.#reverse = true;
             this.#reverseClone = instanceToBeCloned;
+            this.#path = instanceToBeCloned._path;
         }
 
         // this.#average_data = [];
@@ -92,11 +96,15 @@ class RocksDbCache {
     get _reverseClone() {
         return this.#reverseClone;
     }
-    #openDb(db, levelDbOptions) {
+    get _path() {
+        return this.#path;
+    }
+    #openDb(levelDbOptions) {
+        const self = this;
         return new Promise(function (resolve, reject) {
             // disable rockdb's snappy compression, due to the use of lz4
             // you can see a comparsion of the algorithms here: http://pages.di.unipi.it/farruggia/dcb/
-            db.open({ compression: false, ...levelDbOptions }, (openError) => {
+            self.#cache.open({ compression: false, ...levelDbOptions }, (openError) => {
                 if (openError) {
                     return reject('Error opening the database:', openError);
                 }
@@ -124,8 +132,25 @@ class RocksDbCache {
     async #decodeJSON(buffer) {
         return buffer ? this.#desia.deserialize(await lz4uncompress(buffer)) : buffer;
     }
-    async #closeCache(db, resolve, reject) {
-        db.close((closeError) => {
+
+    // async #destroyCache(resolve, reject) {
+    //     this.#cache.destroy(this.#path, (destroyError) => {
+    //         if (destroyError) {
+    //             return reject(destroyError);
+    //         }
+    //         resolve(true);
+    //     });
+    // }
+    // async destroy() {
+    //     try {
+    //         await this.#cacheHandle;
+    //         return new Promise(this.#destroyCache.bind(this));
+    //     } catch (err) {
+    //         console.error(err);
+    //     }
+    // }
+    async #closeCache(resolve, reject) {
+        this.#cache.close((closeError) => {
             if (closeError) {
                 return reject(closeError);
             }
@@ -135,13 +160,14 @@ class RocksDbCache {
 
     async close() {
         await this.#cacheHandle;
-        return new Promise(this.#closeCache.bind(this, this.#cache));
+        return new Promise(this.#closeCache.bind(this));
     }
     async #getFromCache(key, resolve, reject) {
         this.#cache.get(key, (getError, value) => {
             if (getError) {
-                if (getError.message === 'NotFound: ') {
-                    return resolve(undefined);
+                //if (getError.message === 'NotFound: ') {
+                if (getError.notFound) {
+                    return resolve();
                 }
                 return reject(getError);
             }
@@ -232,7 +258,8 @@ class RocksDbCache {
     async #hasInCache(key, resolve, reject) {
         this.#cache.get(key, (getError, _) => {
             if (getError) {
-                if (/NotFound(?:Error)?: /.test(getError.message)) {
+                //if (/NotFound(?:Error)?: /.test(getError.message)) {
+                if (getError.notFound) {
                     return resolve(false);
                 }
                 return reject(getError);
@@ -257,7 +284,7 @@ class RocksDbCache {
             }
             this.#cache.get(key, (getError, _) => {
                 if (getError) {
-                    if (getError.message === 'NotFound: ') {
+                    if (getError.notFound) {
                         results.push(false);
                     } else {
                         return reject(getError);
@@ -406,8 +433,8 @@ class RocksDbCache {
         }
     }
 
-    async #clearCache(db, resolve, reject) {
-        db.clear((err) => {
+    async #clearCache(resolve, reject) {
+        this.#cache.clear((err) => {
             if (err) {
                 reject(err);
             } else {
@@ -418,7 +445,7 @@ class RocksDbCache {
 
     async clear() {
         await this.#cacheHandle;
-        return new Promise(this.#clearCache.bind(this, this.#cache));
+        return new Promise(this.#clearCache.bind(this));
     }
 
     async forEach(f, concurrency = 1) {
@@ -465,6 +492,7 @@ class RocksDbCache {
         }
         return values;
     }
+
     async entries() {
         await this.#cacheHandle;
         let entries = [];
