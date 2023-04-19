@@ -8,6 +8,9 @@
     "type": "git",
     "url": "https://github.com/c7x43t/rocksdb-cache.git"
   },
+  "engines": {
+    "node": ">=10.4.0"
+  },
   "dependencies": {
     "@valentech/sializer": "^0.3.6",
     "bottleneck": "^2.19.5",
