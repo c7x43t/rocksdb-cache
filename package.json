@@ -21,13 +21,19 @@
   },
   "description": "Very simple cache based on rocksdb.\r API:\r import RocksDbCache from ''\r const path = './cache'\r const cache = new RocksDbCache(path)\r // value can be anything serializable by JSON.stringify\r await cache.set(key, value)\r console.log(await cache.get(key))",
   "scripts": {
-    "test": "mocha --experimental-specifier-resolution=node"
+    "test": "mocha --experimental-specifier-resolution=node",
+    "coverage": "c8 --reporter=html --reporter=text mocha --experimental-specifier-resolution=node",
+    "coveralls": "c8 npm test && nyc report --reporter=text-lcov | coveralls"
   },
   "author": "",
   "type": "module",
   "devDependencies": {
     "benchmark": "^2.1.4",
+    "c8": "^7.13.0",
     "chai": "^4.3.7",
-    "mocha": "^10.2.0"
+    "coveralls": "^3.1.1",
+    "mocha": "^10.2.0",
+    "mocha-lcov-reporter": "^1.3.0",
+    "nyc": "^15.1.0"
   }
 }
