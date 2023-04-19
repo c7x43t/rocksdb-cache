@@ -177,7 +177,6 @@ function createMixedTypesObject() {
         set: new Set(Object.values(baseTypes)),
         arr: Object.values(baseTypes),
     };
-
     return nestedObject;
 }
 function createNestedObject(levels, data) {
