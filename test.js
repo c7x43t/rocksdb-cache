@@ -183,7 +183,6 @@ function createNestedObject(levels, data) {
     if (levels === 0) {
         return data;
     }
-
     const nestedObject = {
         obj: createNestedObject(levels - 1, data),
         map: new Map([['key', createNestedObject(levels - 1, data)]]),
