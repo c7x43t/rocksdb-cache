@@ -1,3 +1,6 @@
+[![gitter chat](https://img.shields.io/gitter/room/valentech/rocksdb-cache.svg?style=flat-square)](https://matrix.to/#/!VDMFZOKVhSMnIuXdso:gitter.im?via=gitter.im)
+[![npm downloads](https://img.shields.io/npm/dm/@valentech/rocksdb-cache.svg?style=flat-square)](https://npm-stat.com/charts.html?package=@valentech/rocksdb-cache)
+
 # `RocksDbCache`
 
 Note: Unstable API, stay tuned for version 1.1.
