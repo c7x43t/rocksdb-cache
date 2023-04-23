@@ -1,5 +1,6 @@
 [![gitter chat](https://img.shields.io/gitter/room/valentech/rocksdb-cache.svg?style=flat-square)](https://matrix.to/#/!VDMFZOKVhSMnIuXdso:gitter.im?via=gitter.im)
 [![npm downloads](https://img.shields.io/npm/dm/@valentech/rocksdb-cache.svg?style=flat-square)](https://npm-stat.com/charts.html?package=@valentech/rocksdb-cache)
+[![Coverage Status](https://coveralls.io/repos/github/c7x43t/rocksdb-cache/badge.svg?style=flat-square&branch=master)](https://coveralls.io/github/c7x43t/rocksdb-cache?branch=master)
 
 # `RocksDbCache`
 
