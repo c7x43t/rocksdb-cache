@@ -3,7 +3,15 @@ import RocksDB from 'rocksdb';
 import { compress as lz4compress, uncompress as lz4uncompress } from 'lz4-napi';
 // import { Sia, DeSia, constructors as builtins } from '@valentech/sializer';
 import { Sia, DeSia } from '@valentech/sializer';
-import Bottleneck from "bottleneck";
+import PQueue from 'p-queue';
+import memoize from 'fast-memoize';
+function limitConcurrency_(asyncFunc, concurrency = 1) {
+    const queue = new PQueue({ concurrency });
+    return function (...args) {
+        return queue.add(() => asyncFunc(...args));
+    };
+}
+const limitConcurrency = memoize(limitConcurrency_);
 import LRUCache from 'lru-cache';
 const textDecoder = new TextDecoder();
 
@@ -450,14 +458,14 @@ class RocksDbCache {
 
     async forEach(f, concurrency = 1) {
         await this.#cacheHandle;
-        if (concurrency > 1) f = new Bottleneck({ maxConcurrent: concurrency }).wrap(f);
+        if (concurrency > 1) f = limitConcurrency(f, concurrency);
         for await (const [key, value] of this) {
             await f(value, key, this);
         }
     }
     async reduce(f, initialValue, concurrency = 1) {
         await this.#cacheHandle;
-        if (concurrency > 1) f = new Bottleneck({ maxConcurrent: concurrency }).wrap(f);
+        if (concurrency > 1) f = limitConcurrency(f, concurrency);
         let i = 0;
         let accumulator = initialValue;
         for await (const [key, value] of this) {
@@ -473,7 +481,7 @@ class RocksDbCache {
     }
     async map(f, concurrency = 1) {
         await this.#cacheHandle;
-        if (concurrency > 1) f = new Bottleneck({ maxConcurrent: concurrency }).wrap(f);
+        if (concurrency > 1) f = limitConcurrency(f, concurrency);
         const values = [];
         for await (const [key, value] of this) {
             values.push([key, await f(value, key, this)]);
@@ -482,7 +490,7 @@ class RocksDbCache {
     }
     async filter(f, concurrency = 1) {
         await this.#cacheHandle;
-        if (concurrency > 1) f = new Bottleneck({ maxConcurrent: concurrency }).wrap(f);
+        if (concurrency > 1) f = limitConcurrency(f, concurrency);
         const values = [];
         for await (const entry of this) {
             const [key, value] = entry;

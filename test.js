@@ -424,6 +424,7 @@ for (let withLruCache of [true, false]) {
             await cache.set('test', o_n);
             var value = await cache.get('test');
             expect(value).to.deep.equal(o_n);
+            expect(Object.getPrototypeOf(value)).to.equal(Object.getPrototypeOf(o_n));
         });
 
         it('should support circular datastructures', async () => {
