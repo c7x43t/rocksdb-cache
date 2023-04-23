@@ -106,3 +106,5 @@ dist
 yarn-error.log
 
 cache
+
+run_coveralls.bat
