@@ -1,6 +1,8 @@
 import { describe, it, before } from 'mocha';
 import RocksDbCache from './index.js';
 import { expect } from 'chai';
+import deepEql from 'deep-eql';
+import { DeSia, Sia } from '@valentech/sializer';
 
 const typesTestData = [
     {
@@ -384,10 +386,26 @@ for (let withLruCache of [true, false]) {
             for (const [key, value] of Object.entries(testData)) {
                 await cache.set(key, value);
             }
-
             const sum = await cache.reduce((accumulator, value) => accumulator + value, 0);
-
             expect(sum).to.equal(6);
+            const sum2 = await cache.reduce((accumulator, value) => accumulator + value);
+            expect(sum2).to.equal(6);
+        });
+        it('should map values', async () => {
+            const testData = { key1: 1, key2: 2, key3: 3 };
+            for (const [key, value] of Object.entries(testData)) {
+                await cache.set(key, value);
+            }
+            let values = await cache.map((value, _) => value + 1);
+            expect(compareArrays(values, [['key1', 2], ['key2', 3], ['key3', 4]])).to.deep.equal(true);
+        });
+        it('should filter values', async () => {
+            const testData = { key1: 1, key2: 2, key3: 3 };
+            for (const [key, value] of Object.entries(testData)) {
+                await cache.set(key, value);
+            }
+            let values = await cache.filter((value, key) => value == 3 || key == 'key1');
+            expect(compareArrays(values, [['key1', 1], ['key3', 3]])).to.deep.equal(true);
         });
         it('should set and get many values', async () => {
             let testData = {};
@@ -540,6 +558,72 @@ for (let withLruCache of [true, false]) {
             await cache.set('test', bigInts);
             var value = await cache.get('test');
             expect(value).to.deep.equal(bigInts);
+        });
+        it('should return the cache entries', async () => {
+            for (let key of Object.keys(baseTypes)) {
+                await cache.set(key, baseTypes[key]);
+            }
+            // let entries = Object.entries(baseTypes);
+            let entriesCache = await cache.entries();
+            expect(baseTypes).to.deep.equal(Object.fromEntries(entriesCache));
+        })
+        function compareArrays(a, b) { // compare arrays without order
+            if (a.length !== b.length) return false;
+            // track elements seen before for exclusion such that there is a 1 to 1 correspondence
+            let indices = new Set();
+            for (let val of a) {
+                let index = b.findIndex((e, i) => !indices.has(i) && deepEql(val, e))
+                if (index === -1) return false;
+                indices.add(index);
+            }
+            return true;
+        }
+        it('should return the cache keys', async () => {
+            for (let key of Object.keys(baseTypes)) {
+                await cache.set(key, baseTypes[key]);
+            }
+            let keysCache = await cache.keys();
+            expect(compareArrays(Object.keys(baseTypes), keysCache)).to.deep.equal(true);
+        });
+        it('should return the cache values', async () => {
+            for (let key of Object.keys(baseTypes)) {
+                await cache.set(key, baseTypes[key]);
+            }
+            let valuesCache = await cache.values();
+            expect(compareArrays(Object.values(baseTypes), valuesCache)).to.deep.equal(true);
+        });
+        it('should support bulk operations', async () => {
+            await cache.set(Object.entries(baseTypes));
+            let get_ = await cache.get(Object.keys(baseTypes));
+            let has_ = await cache.has(Object.keys(baseTypes));
+
+            expect(compareArrays(Object.values(baseTypes), get_)).to.deep.equal(true);
+            expect(has_.reduce((acc, e) => acc && e)).to.deep.equal(true);
+            await cache.delete(Object.keys(baseTypes));
+            expect((await cache.keys()).length).to.equal(0);
+        });
+        it('test the getters', async () => {
+            // expect(cache).to.equal(cache._cache);
+            expect(cache._sia instanceof Sia).to.equal(true);
+            expect(cache._desia instanceof DeSia).to.equal(true);
+            expect(cache._path).to.equal(path);
+        });
+        it('should support reverse iteration', async () => {
+            for (let key of Object.keys(baseTypes)) {
+                await cache.set(key, baseTypes[key]);
+            }
+            // let entries = Object.entries(baseTypes);
+            let keysCache = await cache.keys();
+            let valuesCache = await cache.values();
+            let entriesCache = await cache.entries();
+            let reversedCache = cache.reverse();
+            expect(reversedCache instanceof RocksDbCache).to.equal(true);
+            let keysReverse = await reversedCache.keys();
+            let valuesReverse = await reversedCache.values();
+            let entriesReverse = await reversedCache.entries();
+            expect(keysReverse.reverse()).to.deep.equal(keysCache);
+            expect(valuesReverse.reverse()).to.deep.equal(valuesCache);
+            expect(entriesReverse.reverse()).to.deep.equal(entriesCache);
         });
     });
 }
