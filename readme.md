@@ -34,29 +34,29 @@ This package also includes a Least Recently Used (LRU) read cache that works for
 
 Example: `new RocksDbCache('./cache')`
 
-### `cache.set(key, value) or cache.set(entries[]<[key,value]>)`
+### `cache.set(key, value) or cache.setMany(entries[]<[key,value]>)`
 
 Sets the value for the key in the cache. If the value is a promise it will be resolved before it is set.
 
-`cache.set(entries)`:  Sets the entries in the cache. `entries` can be any iterable (such as Array, Map, RocksDbCache) which yields a valid entry: `[key, value]`. 
+`cache.setMany(entries)`:  Sets the entries in the cache. `entries` can be any iterable (such as Array, Map, RocksDbCache) which yields a valid entry: `[key, value]`. 
 
-### `cache.get(key) or cache.get(keys[]<key>)`
+### `cache.get(key) or cache.getMany(keys[]<key>)`
 
 Returns the value associated to the key, or `undefined` if there is none.
 
-`cache.get(keys)`:  Gets the values associated with keys or undefined if key is not defined. `keys` can be any iterable (such as Array, Set) which yields a valid key: `key`. 
+`cache.getMany(keys)`:  Gets the values associated with keys or undefined if key is not defined. `keys` can be any iterable (such as Array, Set) which yields a valid key: `key`. 
 
-### `cache.has(key) or cache.has(keys[]<key>)`
+### `cache.has(key) or cache.hasMany(keys[]<key>)`
 
 Returns a boolean indicating whether an element with the specified key exists or not.
 
-`cache.has(keys)`:  Returns booleans indicating whether the elements with the specified keys exist or not. `keys` can be any iterable (such as Array, Set) which yields a valid key: `key`. 
+`cache.hasMany(keys)`:  Returns booleans indicating whether the elements with the specified keys exist or not. `keys` can be any iterable (such as Array, Set) which yields a valid key: `key`. 
 
-### `cache.delete(key) or cache.delete(keys[]<key>)`
+### `cache.delete(key) or cache.deleteMany(keys[]<key>)`
 
 Removes any value associated with the key.  <u>Always returns `true`</u>, unlike Map.prototype.delete which returns `false` if there was no value associated with the key.
 
-`cache.delete(keys)`:  Removes any values associated with the keys.  <u>Always returns `true`</u>. `keys` can be any iterable (such as Array, Set) which yields a valid key: `key`. 
+`cache.deleteMany(keys)`:  Removes any values associated with the keys.  <u>Always returns `true`</u>. `keys` can be any iterable (such as Array, Set) which yields a valid key: `key`. 
 
 ### `cache.clear()`
 

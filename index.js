@@ -1,8 +1,8 @@
 import levelup from 'levelup';
 import RocksDB from 'rocksdb';
-import { compress as lz4compress, uncompress as lz4uncompress } from 'lz4-napi';
+// import { compress as lz4compress, uncompress as lz4uncompress } from 'lz4-napi';
 // import { Sia, DeSia, constructors as builtins } from '@valentech/sializer';
-import { Sia, DeSia } from '@valentech/sializer';
+import { Sia, DeSia, SiaCompressed, DeSiaCompressed } from '@valentech/sializer';
 import PQueue from 'p-queue';
 import memoize from 'fast-memoize';
 function limitConcurrency_(asyncFunc, concurrency = 1) {
@@ -14,7 +14,8 @@ function limitConcurrency_(asyncFunc, concurrency = 1) {
 const limitConcurrency = memoize(limitConcurrency_);
 import LRUCache from 'lru-cache';
 const textDecoder = new TextDecoder();
-
+// import { Buffer as BufferShim } from 'buffer/';
+const BufferClass = Buffer //;typeof Buffer === "undefined" ? BufferShim : Buffer;
 // defining additional types to be serializable:
 //   {
 //     constructor: RegExp, // The custom class you want to support
@@ -42,6 +43,11 @@ class RocksDbCache {
     #reverseClone = undefined;
     #lruCache = undefined; // experimental
     #path = undefined;
+    #subKey = undefined;
+    #subKeys = undefined;
+    #keyBuffer = undefined;
+    #rocksDb = undefined;
+    #bKey = undefined;
     // #average_data = undefined;
     // #average = 0;
     // #maxPoints = 10;
@@ -50,36 +56,49 @@ class RocksDbCache {
     constructor(path,
         iterable,
         options = {},
-        cloneConstruction = false,
+        cloneConstruction, // payload
         instanceToBeCloned) {
         options = Object.assign({
             levelDbOptions: {},
             customConstructors: [],
             lruCache: true,
-            lruCacheSize: 1024
+            lruCacheSize: 1024,
+            compression: true
         }, options);
         if (!cloneConstruction) {
-            const { levelDbOptions, customConstructors } = options;
-            this.#cache = levelup(new RocksDB(path));
+            const { levelDbOptions, customConstructors, compression } = options;
+            const rocksDb = new RocksDB(path)
+            this.#rocksDb = rocksDb;
+            this.#cache = levelup(rocksDb);
             this.#cacheHandle = this.#openDb(levelDbOptions);
+            const size = 33554432;
+            this.#keyBuffer = BufferClass.alloc(size);
             const constructors = [
                 // ...builtins,
                 ...customConstructors
             ]
-            this.#sia = new Sia({ constructors });
-            this.#desia = new DeSia({ constructors });
+            this.compressed = compression; // to be able to read compression mode
+            this.#sia = compression ? new SiaCompressed({ constructors }) : new Sia({ constructors });
+            this.#desia = compression ? new DeSiaCompressed({ constructors }) : new DeSia({ constructors });
+            this.#subKeys = new Map();
+            this.#subKey = undefined;
             this.#path = path;
             if (options.lruCache) this.#lruCache = new LRUCache({ max: options.lruCacheSize });
         } else {
+            const { reverse, subKey } = cloneConstruction;
             this.#cache = instanceToBeCloned._cache;
             this.#cacheHandle = instanceToBeCloned._cacheHandle;
             this.#sia = instanceToBeCloned._sia;
             this.#desia = instanceToBeCloned._desia;
-            this.#reverse = true;
+            this.#reverse = reverse ?? false;
+            this.#subKey = subKey ?? undefined;
+            this.#subKeys = instanceToBeCloned._subKeys;
             this.#reverseClone = instanceToBeCloned;
             this.#path = instanceToBeCloned._path;
         }
-
+        if (iterable && this.#cacheHandle) {
+            this.#cacheHandle = this.#cacheHandle.then(() => this.setMany(iterable));
+        }
         // this.#average_data = [];
         // this.#average = 0;
         // this.#maxPoints = 10;
@@ -107,6 +126,10 @@ class RocksDbCache {
     get _path() {
         return this.#path;
     }
+    get _subKeys() {
+        return this.#subKeys;
+    }
+
     #openDb(levelDbOptions) {
         const self = this;
         return new Promise(function (resolve, reject) {
@@ -120,12 +143,35 @@ class RocksDbCache {
             });
         });
     }
+
+    subKey(key) { // key must be string
+        const composedKey = !this.#subKey ? key : this.#subKey + key;
+        if (this.#subKeys.has(composedKey)) {
+            return this.#subKeys.get(composedKey);
+        }
+        // ...
+        let cloneInstance;
+        const bKey = this.#encodeJSON(key);
+        if (this.#subKey) {
+            this.#subKey.copy(this.#keyBuffer, 0, 0, this.#subKey.length);
+            bKey.copy(this.#bKey, this.#subKey.length, 0, bKey.length);
+        } else {
+            bKey.copy(this.#bKey, 0, 0, bKey.length);
+        }
+        // if (this.#reverseClone) {
+        //     cloneInstance = this.#reverseClone;
+        // } else {
+        //     cloneInstance = new RocksDbCache(undefined, undefined, undefined, true, this);
+        //     this.#reverseClone = cloneInstance;
+        // }
+        return cloneInstance;
+    }
     reverse() {
         let cloneInstance;
         if (this.#reverseClone) {
             cloneInstance = this.#reverseClone;
         } else {
-            cloneInstance = new RocksDbCache(undefined, undefined, undefined, true, this);
+            cloneInstance = new RocksDbCache(undefined, undefined, undefined, { reverse: true }, this);
             this.#reverseClone = cloneInstance;
         }
         return cloneInstance;
@@ -133,12 +179,12 @@ class RocksDbCache {
     // getProperty() {
 
     // }
-    async #encodeJSON(data) {
-        return lz4compress(this.#sia.serialize(data));
+    #encodeJSON(data) {
+        return this.#sia.serialize(data); //lz4compress(this.#sia.serialize(data));
     }
 
-    async #decodeJSON(buffer) {
-        return buffer ? this.#desia.deserialize(await lz4uncompress(buffer)) : buffer;
+    #decodeJSON(buffer) {
+        return buffer ? this.#desia.deserialize(buffer) : buffer//this.#desia.deserialize(await lz4uncompress(buffer)) : buffer;
     }
 
     // async #destroyCache(resolve, reject) {
@@ -193,7 +239,8 @@ class RocksDbCache {
                 resultingValues = new Array(keys.length).fill(undefined);
                 let i = 0;
                 for (let key of keys) {
-                    key = coerceKey(key);
+                    // key = coerceKey(key);
+                    // key = this.#encodeJSON(key);
                     if (this.#lruCache.has(key)) {
                         resultingValues[i] = this.#lruCache.get(key);
                     } else {
@@ -206,7 +253,8 @@ class RocksDbCache {
                 resultingValues = new Array(keys.length).fill(undefined);
                 let i = 0;
                 for (let key of keys) {
-                    key = coerceKey(key);
+                    // key = this.#encodeJSON(key);
+                    // key = coerceKey(key);
                     if (this.#lruCache.has(key)) {
                         resultingValues[i] = this.#lruCache.get(key);
                     } else {
@@ -227,7 +275,9 @@ class RocksDbCache {
             //     }
             // }
             if (uncachedKeys.length > 0) {
-                this.#cache.getMany(uncachedKeys, options, async (getError, values) => {
+                const self = this;
+                const uncachedBKeys = uncachedKeys.map(key => self.#encodeJSON(key));
+                this.#cache.getMany(uncachedBKeys, options, async (getError, values) => {
                     if (getError) {
                         return reject(getError);
                     }
@@ -237,34 +287,37 @@ class RocksDbCache {
                     for (let i = 0; i < decodedValues.length; i++) {
                         resultingValues[uncachedIndices[i]] = decodedValues[i];
                     }
-                    resolve(resultingValues);
+                    return resolve(resultingValues);
                 });
             } else {
-                resolve(resultingValues);
+                return resolve(resultingValues);
             }
         } else {
-            this.#cache.getMany(Array.isArray(keys) ? keys : Array.from(keys), options, async (getError, values) => {
+            const self = this;
+            keys = (Array.isArray(keys) ? keys : Array.from(keys)).map(key => self.#encodeJSON(key));
+            // console.log({ keys })
+            this.#cache.getMany(keys, options, async (getError, values) => {
                 if (getError) {
                     return reject(getError);
                 }
                 let decodedValues = values.map(value => this.#decodeJSON(value));
                 decodedValues = await Promise.all(decodedValues)
-                resolve(decodedValues);
+                return resolve(decodedValues);
             });
         }
     }
     async get(key, options = {}) {
         await this.#cacheHandle;
-        if (typeof key !== 'object') {
-            key = coerceKey(key);
-            if (this.#lruCache && this.#lruCache.has(key)) return this.#lruCache.get(key);
-            return new Promise(this.#getFromCache.bind(this, key));
-        } else {
-            return new Promise(this.#getManyFromCache.bind(this, key, options));
-        }
+        const bKey = this.#encodeJSON(key);
+        if (this.#lruCache && this.#lruCache.has(key)) return this.#lruCache.get(key);
+        return new Promise(this.#getFromCache.bind(this, bKey));
+    }
+    async getMany(keys, options = {}) {
+        return new Promise(this.#getManyFromCache.bind(this, keys, options));
     }
     async #hasInCache(key, resolve, reject) {
-        this.#cache.get(key, (getError, _) => {
+        const bKey = this.#encodeJSON(key);
+        this.#cache.get(bKey, (getError, _) => {
             if (getError) {
                 //if (/NotFound(?:Error)?: /.test(getError.message)) {
                 if (getError.notFound) {
@@ -285,12 +338,13 @@ class RocksDbCache {
             if (index >= keys.length) {
                 return resolve(results);
             }
-            const key = coerceKey(keys[index]);
-            if (this.#lruCache && this.#lruCache.has(key)) {
+            // const key = coerceKey(keys[index]);
+            const bKey = this.#encodeJSON(keys[index]);
+            if (this.#lruCache && this.#lruCache.has(bKey)) {
                 results.push(true);
                 return checkNextKey(index + 1);
             }
-            this.#cache.get(key, (getError, _) => {
+            this.#cache.get(bKey, (getError, _) => {
                 if (getError) {
                     if (getError.notFound) {
                         results.push(false);
@@ -308,15 +362,19 @@ class RocksDbCache {
 
     async has(key) {
         await this.#cacheHandle;
-        if (!(key instanceof Array)) {
-            key = coerceKey(key);
-            if (this.#lruCache && this.#lruCache.has(key)) return true;
-            return new Promise(this.#hasInCache.bind(this, key));
-        } else {
-            return (await Promise.all(await new Promise(this.#hasManyInCache.bind(this, key))));
-        }
+        if (this.#lruCache && this.#lruCache.has(key)) return true;
+        return new Promise(this.#hasInCache.bind(this, key));
+        // if (!(key instanceof Array)) {
+        //     key = coerceKey(key);
+        //     if (this.#lruCache && this.#lruCache.has(key)) return true;
+        //     return new Promise(this.#hasInCache.bind(this, key));
+        // } else {
+        //     return (await Promise.all(await new Promise(this.#hasManyInCache.bind(this, key))));
+        // }
     }
-
+    async hasMany(keys) {
+        return (await Promise.all(await new Promise(this.#hasManyInCache.bind(this, keys))));
+    }
     // #isEntry(entry) {
     //     // Map does not check if entry[0] is a string, since it accepts non string arguments as keys
     //     // Therefore a valid entry for RocksDbCache is not the same as a valid entry for Map
@@ -334,7 +392,8 @@ class RocksDbCache {
     // }
     async #setInCache(key, value, resolve, reject) {
         const encodedValue = await this.#encodeJSON(await value);
-        this.#cache.put(key, encodedValue, (putError) => {
+        const bKey = this.#encodeJSON(key);
+        this.#cache.put(bKey, encodedValue, (putError) => {
             if (putError) {
                 return reject(putError);
             }
@@ -350,7 +409,7 @@ class RocksDbCache {
                 const entry = iterable[i];
                 entries[i] =
                 {
-                    type: 'put', key: coerceKey(entry[0]), value: await self.#encodeJSON(await entry[1])
+                    type: 'put', key: self.#encodeJSON(entry[0]), value: await self.#encodeJSON(await entry[1])
                 }
                 // (async (self, entry) => {
                 //     return {
@@ -366,7 +425,7 @@ class RocksDbCache {
             // }
             for (let entry of iterable) {
                 entries.push({
-                    type: 'put', key: coerceKey(entry[0]), value: await self.#encodeJSON(await entry[1])
+                    type: 'put', key: self.#encodeJSON(entry[0]), value: await self.#encodeJSON(await entry[1])
                 });
                 // entries.push((async (self, entry) => {
                 //     return {
@@ -391,22 +450,24 @@ class RocksDbCache {
 
     async set(key, value) {
         await this.#cacheHandle;
-        if (arguments.length >= 2) {
-            key = coerceKey(key);
-            if (this.#lruCache) this.#lruCache.set(key, value);
-            return new Promise(this.#setInCache.bind(this, key, value));
-        } else if (key?.[Symbol.iterator] instanceof Function) {
-            return new Promise(this.#setInCacheMany.bind(this, key));
-            // return new Promise(this.#setIterableInCache.bind(this, key));
-        } else if (key instanceof Object) {
-            return new Promise(this.#setObjectInCache.bind(this, key));
+        // key = coerceKey(key);
+        if (this.#lruCache) this.#lruCache.set(key, value);
+        return new Promise(this.#setInCache.bind(this, key, value));
+    }
+    async setMany(entries) {
+        await this.#cacheHandle;
+        if (entries?.[Symbol.iterator] instanceof Function) {
+            return new Promise(this.#setInCacheMany.bind(this, entries));
+        } else if (entries instanceof Object) {
+            return new Promise(this.#setObjectInCache.bind(this, entries));
         } else {
-            throw `Invalid arguments provided: key: ${key}, value: ${value}`;
+            throw `Invalid arguments provided: entries: ${entries}`;
         }
     }
 
     async #deleteFromCache(key, resolve, reject) {
-        this.#cache.del(key, (deleteError) => {
+        const bKey = this.#encodeJSON(key)
+        this.#cache.del(bKey, (deleteError) => {
             if (deleteError) {
                 return reject(deleteError);
             }
@@ -417,11 +478,11 @@ class RocksDbCache {
         const self = this;
         let keys;
         if (Array.isArray(iterable)) {
-            keys = iterable.map(function (key) { return { type: 'del', key } });
+            keys = iterable.map(function (key) { return { type: 'del', key: self.#encodeJSON(key) } });
         } else {
             keys = [];
             for (let key of iterable) {
-                keys.push(function (key) { return { type: 'del', key } }.call(this, key));
+                keys.push(function (key) { return { type: 'del', key: self.#encodeJSON(key) } }.call(this, key));
             }
         }
         const chainedBatch = this.#cache.batch(await Promise.all(keys), {}, (batchError) => {
@@ -531,7 +592,7 @@ class RocksDbCache {
             values: false
         }
         for await (const [key, _] of this.#cache.iterator(iteratorOptions)) {
-            keys.push(textDecoder.decode(key));
+            keys.push(this.#decodeJSON(key));
         }
         return keys;
     }
@@ -543,9 +604,26 @@ class RocksDbCache {
             values: true
         }
         for await (const [key, value] of this.#cache.iterator(iteratorOptions)) {
-            yield [textDecoder.decode(key), await this.#decodeJSON(value)];
+            yield [this.#decodeJSON(key), await this.#decodeJSON(value)];
         }
     }
 }
 
 export default RocksDbCache;
+// async function main() {
+//     const path = './cache';
+//     const cache = new RocksDbCache(path, undefined, { lruCache: true });
+//     await cache.clear();
+//     let key = 'unknownKey';
+//     let keys = new Array(10).fill(0).map((_, i) => `${key}${i}`);
+//     let valueGet = await cache.get(key);
+//     console.log({ valueGet });
+//     let valuesGet = await cache.getMany(keys);
+//     console.log({ valuesGet, should: new Array(keys.length).fill(undefined) });
+
+//     let valueHas = await cache.has(key);
+//     let valuesHas = await cache.hasMany(keys);
+//     console.log({ valueHas, valuesHas, should: new Array(keys.length).fill(false) })
+//     console.log(1)
+// }
+// // main();

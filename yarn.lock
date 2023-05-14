@@ -112,13 +112,14 @@
   resolved "https://registry.yarnpkg.com/@types/istanbul-lib-coverage/-/istanbul-lib-coverage-2.0.4.tgz#8467d4b3c087805d63580480890791277ce35c44"
   integrity sha512-z/QT1XN4K4KYuslS23k62yDIDLwLFkzxOuMplDtObz0+y7VqJCaO2o+SPwHCvLFZh7xazvvoor2tA/hPz9ee7g==
 
-"@valentech/sializer@^0.3.6":
-  version "0.3.6"
-  resolved "https://registry.yarnpkg.com/@valentech/sializer/-/sializer-0.3.6.tgz#c10e5fcb8cecca63863058c8e7ccb14def8c00a7"
-  integrity sha512-UJqEg0kghna+v20JJJLCssqeeoyGzOV/gmnxUotS3HSClBl6fDTrU0oIyJckkZQkbzswQJwPTd7x4y5pNAYB9w==
+"@valentech/sializer@^0.3.7":
+  version "0.3.7"
+  resolved "https://registry.yarnpkg.com/@valentech/sializer/-/sializer-0.3.7.tgz#7b81461b47020f6e3832faaaf0a3122927a5b4ed"
+  integrity sha512-tv7GafF2aiU7hdkPvG4CwyjY46qZ1GBkcGJElpJMVkHa4UhrPgPUmwrZSmj/w8p5Szxi8pwaSKRdeutTn5A2Gw==
   dependencies:
     "@valentech/utfz-lib" "^0.2.3"
     buffer "^6.0.3"
+    lz4-napi "^2.2.0"
 
 "@valentech/utfz-lib@^0.2.3":
   version "0.2.3"
